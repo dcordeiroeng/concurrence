@@ -20,7 +20,7 @@ class ConcurrenceController {
     @GetMapping("in-order")
     fun getAllInOrder(): Mono<String> {
         val service1Response = callService1()
-        val Service2Response = callService2(mapOf())
+        val service2Response = callService2(mapOf())
         val aMono = getA("a")
         val bMono = getB("b")
         val cMono = getC("c")
