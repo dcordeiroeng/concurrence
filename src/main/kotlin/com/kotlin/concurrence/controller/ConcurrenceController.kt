@@ -20,15 +20,18 @@ class ConcurrenceController {
     suspend fun getAllAsync(): List<User> = coroutineScope {
         val token = generateToken()
 
-        val userM1Deferred = async { getUser("http://localhost:8082/user-m1", token) }
-        val userM2Deferred = async { getUser("http://localhost:8083/user-m2", token) }
-        val userM3Deferred = async { getUser("http://localhost:8084/user-m3", token) }
+        val userM1Deferred = async { getUser("http://localhost:8083/user-m1", token) }
+        val userM2Deferred = async { getUser("http://localhost:8084/user-m2", token) }
+        val userM3Deferred = async { getUser("http://localhost:8085/user-m3", token) }
+
 
         listOf(
             userM1Deferred.await(),
             userM2Deferred.await(),
             userM3Deferred.await()
-        )
+        ).also {
+            logger.info("Users processed: $it")
+        }
     }
 
     private suspend fun getUser(url: String, token: Token): User {
@@ -49,7 +52,7 @@ class ConcurrenceController {
         return try {
             withTimeout(2000) {
                 webClient.get()
-                    .uri("http://localhost:8085/token")
+                    .uri("http://localhost:8082/token")
                     .retrieve()
                     .awaitBody<Token>()
             }
