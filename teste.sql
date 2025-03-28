@@ -18,15 +18,17 @@ BEGIN
         SET v_lote_count = v_lote_count + 1;
         SELECT CONCAT('Processando lote ', v_lote_count, ' de ', v_max_lotes) AS mensagem_lote;
         
-        -- 1. DELETE para elegibilidades usando EXISTS em vez de JOIN com subquery
+        -- 1. DELETE para elegibilidades usando subquery encapsulada
         DELETE FROM tbvq037_elgd_funo_ccre_clie
         WHERE num_cpf_cnpj_titu_cccr IN (
-            SELECT DISTINCT cartoes.num_cpf_cnpj_titu_cccr
-            FROM tbvq036_info_ccre_clie cartoes
-            JOIN tbvq037_elgd_funo_ccre_clie elegibilidades_sub
-                ON cartoes.num_cpf_cnpj_titu_cccr = elegibilidades_sub.num_cpf_cnpj_titu_cccr
-            WHERE cartoes.ind_titu_ccre = 'A'
-              AND elegibilidades_sub.cod_funo_ccre = 11
+            SELECT temp.cpf FROM (
+                SELECT DISTINCT tbvq036_info_ccre_clie.num_cpf_cnpj_titu_cccr AS cpf
+                FROM tbvq036_info_ccre_clie
+                JOIN tbvq037_elgd_funo_ccre_clie elegibilidades_sub
+                    ON tbvq036_info_ccre_clie.num_cpf_cnpj_titu_cccr = elegibilidades_sub.num_cpf_cnpj_titu_cccr
+                WHERE tbvq036_info_ccre_clie.ind_titu_ccre = 'A'
+                  AND elegibilidades_sub.cod_funo_ccre = 11
+            ) AS temp
         )
         LIMIT v_batch_size;
         
