@@ -1,75 +1,76 @@
 DELIMITER //
 
-CREATE PROCEDURE Excluir_e_c_3Lotes()
+CREATE PROCEDURE ExcluirCartoesElegibilidades_3Lotes()
 BEGIN
-    DECLARE v_lote INT DEFAULT 0;
+    DECLARE v_lote_count INT DEFAULT 0;
     DECLARE v_max_lotes INT DEFAULT 3;
-    DECLARE v_rows INT DEFAULT 1;
-    DECLARE v_total_e INT DEFAULT 0;
-    DECLARE v_total_c INT DEFAULT 0;
-    DECLARE v_batch INT DEFAULT 10000;
-    DECLARE v_c_afetados INT DEFAULT 0;
+    DECLARE v_rows_affected INT DEFAULT 1;
+    DECLARE v_total_elegibilidades INT DEFAULT 0;
+    DECLARE v_total_cartoes INT DEFAULT 0;
+    DECLARE v_batch_size INT DEFAULT 10000;
+    DECLARE v_cartoes_afetados INT DEFAULT 0;
     
-    SELECT 'INICIANDO PROCESSO EM 3 LOTES' AS msg;
+    SELECT 'INICIANDO PROCESSO DE EXCLUSÃO EM 3 LOTES' AS mensagem;
     
-    WHILE v_lote < v_max_lotes AND v_rows > 0 DO
+    WHILE v_lote_count < v_max_lotes AND v_rows_affected > 0 DO
         START TRANSACTION;
         
-        SET v_lote = v_lote + 1;
-        SELECT CONCAT('Lote ', v_lote, '/', v_max_lotes) AS lote_atual;
+        SET v_lote_count = v_lote_count + 1;
+        SELECT CONCAT('Processando lote ', v_lote_count, ' de ', v_max_lotes) AS mensagem_lote;
         
-        -- 1. DELETE para 'e' (antigas elegibilidades)
-        DELETE FROM te -- tbvq037_elgd_funo_ccre_clie
+        -- 1. DELETE para elegibilidades usando EXISTS em vez de JOIN com subquery
+        DELETE FROM tbvq037_elgd_funo_ccre_clie
         WHERE num_cpf_cnpj_titu_cccr IN (
-            SELECT DISTINCT tc.num_cpf_cnpj_titu_cccr
-            FROM tc -- tbvq036_info_ccre_clie
-            JOIN te e_sub
-                ON tc.num_cpf_cnpj_titu_cccr = e_sub.num_cpf_cnpj_titu_cccr
-            WHERE tc.ind_titu_ccre = 'A'
-              AND e_sub.cod_funo_ccre = 11
+            SELECT DISTINCT cartoes.num_cpf_cnpj_titu_cccr
+            FROM tbvq036_info_ccre_clie cartoes
+            JOIN tbvq037_elgd_funo_ccre_clie elegibilidades_sub
+                ON cartoes.num_cpf_cnpj_titu_cccr = elegibilidades_sub.num_cpf_cnpj_titu_cccr
+            WHERE cartoes.ind_titu_ccre = 'A'
+              AND elegibilidades_sub.cod_funo_ccre = 11
         )
-        LIMIT v_batch;
+        LIMIT v_batch_size;
         
-        SET v_rows = ROW_COUNT();
-        SET v_total_e = v_total_e + v_rows;
+        SET v_rows_affected = ROW_COUNT();
+        SET v_total_elegibilidades = v_total_elegibilidades + v_rows_affected;
         
-        -- 2. DELETE para 'c' sem 'e' (antigos cartões sem elegibilidade)
-        DELETE FROM tc -- tbvq036_info_ccre_clie
+        -- 2. DELETE para cartões sem elegibilidade
+        DELETE FROM tbvq036_info_ccre_clie
         WHERE NOT EXISTS (
-            SELECT 1 FROM te
-            WHERE te.num_cpf_cnpj_titu_cccr = tc.num_cpf_cnpj_titu_cccr
+            SELECT 1 FROM tbvq037_elgd_funo_ccre_clie
+            WHERE tbvq037_elgd_funo_ccre_clie.num_cpf_cnpj_titu_cccr = tbvq036_info_ccre_clie.num_cpf_cnpj_titu_cccr
         )
-        LIMIT v_batch;
+        LIMIT v_batch_size;
         
-        SET v_c_afetados = ROW_COUNT();
-        SET v_total_c = v_total_c + v_c_afetados;
+        SET v_cartoes_afetados = ROW_COUNT();
+        SET v_total_cartoes = v_total_cartoes + v_cartoes_afetados;
         
         COMMIT;
         
-        -- Relatório
+        -- Relatório do lote
         SELECT CONCAT(
-            'Lote ', v_lote, ': ',
-            v_rows, ' e, ',
-            v_c_afetados, ' c. ',
-            'Total: ', v_total_e, ' e, ',
-            v_total_c, ' c'
-        ) AS resultado;
+            'Lote ', v_lote_count, ' concluído: ',
+            v_rows_affected, ' elegibilidades e ',
+            v_cartoes_afetados, ' cartões excluídos. ',
+            'Totais acumulados: ', v_total_elegibilidades, ' elegibilidades e ',
+            v_total_cartoes, ' cartões'
+        ) AS resultado_lote;
         
-        -- Pausa entre lotes (exceto último)
-        IF v_lote < v_max_lotes AND (v_rows > 0 OR v_c_afetados > 0) THEN
+        -- Sleep entre lotes (exceto após o último lote)
+        IF v_lote_count < v_max_lotes AND (v_rows_affected > 0 OR v_cartoes_afetados > 0) THEN
             DO SLEEP(1);
         END IF;
         
-        -- Reset
-        SET v_rows = GREATEST(v_rows, v_c_afetados);
-        SET v_c_afetados = 0;
+        -- Reset para próximo lote
+        SET v_rows_affected = GREATEST(v_rows_affected, v_cartoes_afetados);
+        SET v_cartoes_afetados = 0;
     END WHILE;
     
     SELECT CONCAT(
-        'FIM. Lotes: ', v_lote, '. ',
-        'Totais: ', v_total_e, ' e, ',
-        v_total_c, ' c'
-    ) AS final;
+        'PROCESSO CONCLUÍDO. ',
+        'Lotes executados: ', v_lote_count, '. ',
+        'Totais finais: ', v_total_elegibilidades, ' elegibilidades e ',
+        v_total_cartoes, ' cartões excluídos'
+    ) AS mensagem_final;
 END //
 
 DELIMITER ;
