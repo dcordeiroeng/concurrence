@@ -20,17 +20,19 @@ class ConcurrenceController {
     suspend fun getAllAsync(): List<User> = coroutineScope {
         val token = generateToken()
 
-        val userM1Deferred = async { getUser("http://localhost:8083/user-m1", token) }
-        val userM2Deferred = async { getUser("http://localhost:8084/user-m2", token) }
-        val userM3Deferred = async { getUser("http://localhost:8085/user-m3", token) }
+        try {
+            val userM1Deferred = async { getUser("http://localhost:8083/user-m1", token) }
+            val userM2Deferred = async { getUser("http://localhost:8084/user-m2", token) }
+            val userM3Deferred = async { getUser("http://localhost:8085/user-m3", token) }
 
-
-        listOf(
-            userM1Deferred.await(),
-            userM2Deferred.await(),
-            userM3Deferred.await()
-        ).also {
-            logger.info("Users processed: $it")
+            listOf(
+                userM1Deferred.await(),
+                userM2Deferred.await(),
+                userM3Deferred.await()
+            )
+        } catch (e: Exception) {
+            logger.error("Erro geral ao obter todos os usuários", e)
+            throw RuntimeException("Erro ao buscar usuários, operação cancelada.", e)
         }
     }
 
